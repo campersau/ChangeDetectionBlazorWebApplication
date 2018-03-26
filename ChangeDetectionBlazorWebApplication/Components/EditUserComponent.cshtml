@@ -1,0 +1,21 @@
+﻿@inject UserRepository UserRepository
+
+@if (user != null)
+{
+    <h1>Edit User</h1>
+
+    <p>User: @user.Id</p>
+
+    <input type="text" @bind(user.Name) placeholder="Name" />
+}
+
+@functions {
+    User user;
+
+    public string Id { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        user = UserRepository.FindUserById(Id);
+    }
+}

@@ -1,0 +1,58 @@
+﻿@page "/"
+@page "/{id}"
+@inject UserRepository UserRepository
+@inherits ChangeDetectionComponent
+
+<h1>Users</h1>
+
+@if (Users == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <button @onclick(AddUser)>Add User</button>
+
+    <table class='table'>
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Users)
+            {
+                <tr>
+                    <td>@user.Name</td>
+                    <td><a href="/@(user.Id)">Edit</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <EditUserComponent Id="@Id" />
+}
+
+@functions {
+
+    public string Id { get; set; }
+
+    private ICollection<User> _users;
+    public ICollection<User> Users
+    {
+        get => _users;
+        set { _users = value; FirePropertyChanged(); }
+    }
+
+    protected override void OnInit()
+    {
+        Users = UserRepository.GetUsers();
+    }
+
+    private void AddUser()
+    {
+        Users.Add(new User((_users.Count + 1).ToString()));
+    }
+
+}
