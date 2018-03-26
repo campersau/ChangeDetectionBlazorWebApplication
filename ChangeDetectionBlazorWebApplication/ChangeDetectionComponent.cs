@@ -12,11 +12,24 @@ namespace ChangeDetectionBlazorWebApplication
     public class ChangeDetectionComponent : BlazorComponent, INotifyPropertyChanged, IDisposable
     {
 
-        private readonly HashSet<object> _trackedObjects = new HashSet<object>();
+        private readonly Dictionary<object, int> _trackedObjects = new Dictionary<object, int>();
         private readonly Dictionary<object, Dictionary<string, object>> _propertyChangedValues = new Dictionary<object, Dictionary<string, object>>();
+
+        internal int TrackedObjects => _trackedObjects.Count;
+
+        private readonly Action _stateChanged;
 
         public ChangeDetectionComponent()
         {
+            _stateChanged = StateHasChanged;
+
+            AttachChangeHandlers(this);
+        }
+
+        internal ChangeDetectionComponent(Action stateChanged)
+        {
+            _stateChanged = stateChanged ?? throw new ArgumentNullException(nameof(stateChanged));
+
             AttachChangeHandlers(this);
         }
 
@@ -24,10 +37,25 @@ namespace ChangeDetectionBlazorWebApplication
 
         protected void FirePropertyChanged([CallerMemberName] string propertyName = "") => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-        protected bool AttachChangeHandlers(object obj)
+        protected internal bool AttachChangeHandlers(object obj) => AttachChangeHandlersInternal(obj, false);
+
+        private bool AttachChangeHandlersInternal(object obj, bool deep)
         {
-            if (obj == null || _trackedObjects.Contains(obj))
+            if (obj == null)
             {
+                return false;
+            }
+
+            if (_trackedObjects.TryGetValue(obj, out var refCount))
+            {
+                //if (deep)
+                //{
+                //    return false;
+                //}
+
+                refCount++;
+
+                _trackedObjects[obj] = refCount;
                 return false;
             }
 
@@ -45,7 +73,7 @@ namespace ChangeDetectionBlazorWebApplication
 
             if (tracked)
             {
-                _trackedObjects.Add(obj);
+                _trackedObjects.Add(obj, 1);
             }
 
             // deep!
@@ -53,7 +81,16 @@ namespace ChangeDetectionBlazorWebApplication
             {
                 if (TryGetPropertyValue(obj, property, out var value))
                 {
-                    AttachChangeHandlers(value);
+                    if (obj is INotifyPropertyChanged) // initial values
+                    {
+                        if (!_propertyChangedValues.TryGetValue(obj, out var properties))
+                        {
+                            properties = _propertyChangedValues[obj] = new Dictionary<string, object>();
+                        }
+                        properties[property.Name] = value;
+                    }
+
+                    AttachChangeHandlersInternal(value, true);
                 }
             }
 
@@ -61,34 +98,67 @@ namespace ChangeDetectionBlazorWebApplication
             {
                 foreach (var item in enumerable)
                 {
-                    AttachChangeHandlers(item);
+                    AttachChangeHandlersInternal(item, true);
                 }
             }
 
             return tracked;
         }
 
-        protected bool DetachChangeHandlers(object obj)
+        protected internal bool DetachChangeHandlers(object obj) => DetachChangeHandlersInternal(obj, false);
+
+        protected bool DetachChangeHandlersInternal(object obj, bool deep)
         {
-            if (obj == null || !_trackedObjects.Remove(obj))
+            if (obj == null)
             {
                 return false;
             }
 
-            if (obj is INotifyPropertyChanged notifyPropertyChanged)
+            bool tracked = false, finished = false;
+            if (_trackedObjects.TryGetValue(obj, out var refCount))
             {
-                notifyPropertyChanged.PropertyChanged -= OnPropertyChanged;
-            }
-            if (obj is INotifyCollectionChanged notifyCollectionChanged)
-            {
-                notifyCollectionChanged.CollectionChanged -= OnCollectionChanged;
+                tracked = true;
+
+                //if (deep)
+                //{
+                //    return false;
+                //}
+
+                refCount--;
+
+                if (refCount == 0)
+                {
+                    _trackedObjects.Remove(obj);
+                    finished = true;
+                }
+                else
+                {
+                    _trackedObjects[obj] = refCount;
+                }
             }
 
-            if (obj is IEnumerable enumerable)
+            if (finished)
             {
-                foreach (var item in enumerable)
+                if (obj is INotifyPropertyChanged notifyPropertyChanged)
                 {
-                    DetachChangeHandlers(item);
+                    notifyPropertyChanged.PropertyChanged -= OnPropertyChanged;
+
+                    if (_propertyChangedValues.TryGetValue(obj, out var properties))
+                    {
+                        foreach (var property in properties)
+                        {
+                            if (property.Value != null && _trackedObjects.ContainsKey(property.Value))
+                            {
+                                DetachChangeHandlersInternal(property.Value, true);
+                            }
+                        }
+                        properties.Clear();
+                        _propertyChangedValues.Remove(obj);
+                    }
+                }
+                if (obj is INotifyCollectionChanged notifyCollectionChanged)
+                {
+                    notifyCollectionChanged.CollectionChanged -= OnCollectionChanged;
                 }
             }
 
@@ -97,11 +167,22 @@ namespace ChangeDetectionBlazorWebApplication
             {
                 if (TryGetPropertyValue(obj, oldProperty, out var oldOldValue))
                 {
-                    DetachChangeHandlers(oldOldValue);
+                    if (oldOldValue != null && _trackedObjects.ContainsKey(oldOldValue))
+                    {
+                        DetachChangeHandlersInternal(oldOldValue, true);
+                    }
                 }
             }
 
-            return true;
+            if (obj is IEnumerable enumerable)
+            {
+                foreach (var item in enumerable)
+                {
+                    DetachChangeHandlersInternal(item, true);
+                }
+            }
+
+            return tracked;
         }
 
         private void OnPropertyChanged(object sender, PropertyChangedEventArgs args)
@@ -112,6 +193,11 @@ namespace ChangeDetectionBlazorWebApplication
             {
                 if (_propertyChangedValues.TryGetValue(sender, out var properties) && properties.TryGetValue(args.PropertyName, out var oldValue))
                 {
+                    if (Equals(value, oldValue))
+                    {
+                        return; // value has not changed
+                    }
+
                     DetachChangeHandlers(oldValue);
                 }
                 else
@@ -119,17 +205,21 @@ namespace ChangeDetectionBlazorWebApplication
                     properties = _propertyChangedValues[sender] = new Dictionary<string, object>();
                 }
 
-                if (AttachChangeHandlers(value))
-                {
-                    properties[args.PropertyName] = value;
-                }
+                AttachChangeHandlers(value);
+
+                properties[args.PropertyName] = value;
             }
 
-            StateHasChanged();
+            _stateChanged();
         }
 
         private void OnCollectionChanged(object sender, NotifyCollectionChangedEventArgs args)
         {
+            if (args.Action == NotifyCollectionChangedAction.Reset)
+            {
+                // not supported...
+            }
+
             if (args.NewItems != null)
             {
                 foreach (var newItem in args.NewItems)
@@ -145,7 +235,7 @@ namespace ChangeDetectionBlazorWebApplication
                 }
             }
 
-            StateHasChanged();
+            _stateChanged();
         }
 
         private static bool TryGetPropertyValue(object sender, PropertyInfo property, out object value)
@@ -169,7 +259,7 @@ namespace ChangeDetectionBlazorWebApplication
 
         public virtual void Dispose()
         {
-            foreach (var obj in new List<object>(_trackedObjects))
+            foreach (var obj in new List<object>(_trackedObjects.Keys))
             {
                 DetachChangeHandlers(obj);
             }
