@@ -16,7 +16,9 @@ else
     <table class='table'>
         <thead>
             <tr>
+                <th>Id</th>
                 <th>Username</th>
+                <th>User Groups</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -24,12 +26,16 @@ else
             @foreach (var user in Users)
             {
                 <tr>
+                    <td>@user.Id</td>
                     <td>@user.Name</td>
-                    <td><a href="/@(user.Id)">Edit</a></td>
+                    <td>@string.Join(", ", user.UserGroups)</td>
+                    <td><a href="/@(user.Id)">Edit</a> <a href="#" @onclick(() => RemoveUser(user))>Remove</a></td>
                 </tr>
             }
         </tbody>
     </table>
+
+    <hr />
 
     <EditUserComponent Id="@Id" />
 }
@@ -52,7 +58,17 @@ else
 
     private void AddUser()
     {
-        Users.Add(new User((_users.Count + 1).ToString()));
+        Users.Add(new User());
+    }
+
+    private void RemoveUser(User user)
+    {
+        Users.Remove(user);
+
+        if (user.Id == Id)
+        {
+            Id = null;
+        }
     }
 
 }

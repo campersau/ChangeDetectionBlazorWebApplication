@@ -13,20 +13,4 @@
     <DotNetCliToolReference Include="Microsoft.AspNetCore.Blazor.Cli" Version="0.1.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="Components\EditUserComponent.cshtml" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <BlazorGenerate Remove="Components\EditUserComponent.cshtml" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Remove="Components\EditUserComponent.cshtml" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <BlazorGenerate Remove="Pages\Index.cshtml" />
-  </ItemGroup>
-
 </Project>

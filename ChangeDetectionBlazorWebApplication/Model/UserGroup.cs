@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.ObjectModel;
-
-namespace ChangeDetectionBlazorWebApplication.Model
+﻿namespace ChangeDetectionBlazorWebApplication.Model
 {
-    public class User : BaseModel
+    public class UserGroup : BaseModel
     {
-        public User()
+        public UserGroup(string id)
         {
-            Id = Guid.NewGuid().ToString();
+            Id = id;
         }
 
         public string Id { get; }
@@ -18,8 +15,6 @@ namespace ChangeDetectionBlazorWebApplication.Model
             get => _name;
             set { _name = value; FirePropertyChanged(); }
         }
-
-        public ObservableCollection<UserGroup> UserGroups { get; } = new ObservableCollection<UserGroup>();
 
         public override string ToString()
         {

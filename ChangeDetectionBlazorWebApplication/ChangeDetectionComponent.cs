@@ -26,75 +26,90 @@ namespace ChangeDetectionBlazorWebApplication
 
         protected bool AttachChangeHandlers(object obj)
         {
-            if (obj != null && !_trackedObjects.Contains(obj))
+            if (obj == null || _trackedObjects.Contains(obj))
             {
-                var tracked = false;
-                if (obj is INotifyPropertyChanged notifyPropertyChanged)
-                {
-                    notifyPropertyChanged.PropertyChanged += OnPropertyChanged;
-                    tracked = true;
-                }
-                if (obj is INotifyCollectionChanged notifyCollectionChanged)
-                {
-                    notifyCollectionChanged.CollectionChanged += OnCollectionChanged;
-                    tracked = true;
-                }
+                return false;
+            }
 
-                if (tracked)
-                {
-                    _trackedObjects.Add(obj);
-                }
+            var tracked = false;
+            if (obj is INotifyPropertyChanged notifyPropertyChanged)
+            {
+                notifyPropertyChanged.PropertyChanged += OnPropertyChanged;
+                tracked = true;
+            }
+            if (obj is INotifyCollectionChanged notifyCollectionChanged)
+            {
+                notifyCollectionChanged.CollectionChanged += OnCollectionChanged;
+                tracked = true;
+            }
 
-                if (obj is IEnumerable enumerable)
-                {
-                    foreach (var item in enumerable)
-                    {
-                        AttachChangeHandlers(item);
-                    }
-                }
+            if (tracked)
+            {
+                _trackedObjects.Add(obj);
+            }
 
-                if (tracked)
+            // deep!
+            foreach (var property in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (TryGetPropertyValue(obj, property, out var value))
                 {
-                    return true;
+                    AttachChangeHandlers(value);
                 }
             }
-            return false;
+
+            if (obj is IEnumerable enumerable)
+            {
+                foreach (var item in enumerable)
+                {
+                    AttachChangeHandlers(item);
+                }
+            }
+
+            return tracked;
         }
 
         protected bool DetachChangeHandlers(object obj)
         {
-            if (obj != null && _trackedObjects.Remove(obj))
+            if (obj == null || !_trackedObjects.Remove(obj))
             {
-                if (obj is INotifyPropertyChanged notifyPropertyChanged)
-                {
-                    notifyPropertyChanged.PropertyChanged -= OnPropertyChanged;
-                }
-                if (obj is INotifyCollectionChanged notifyCollectionChanged)
-                {
-                    notifyCollectionChanged.CollectionChanged -= OnCollectionChanged;
-                }
-
-                if (obj is IEnumerable enumerable)
-                {
-                    foreach (var item in enumerable)
-                    {
-                        DetachChangeHandlers(item);
-                    }
-                }
-
-                return true;
+                return false;
             }
-            return false;
+
+            if (obj is INotifyPropertyChanged notifyPropertyChanged)
+            {
+                notifyPropertyChanged.PropertyChanged -= OnPropertyChanged;
+            }
+            if (obj is INotifyCollectionChanged notifyCollectionChanged)
+            {
+                notifyCollectionChanged.CollectionChanged -= OnCollectionChanged;
+            }
+
+            if (obj is IEnumerable enumerable)
+            {
+                foreach (var item in enumerable)
+                {
+                    DetachChangeHandlers(item);
+                }
+            }
+
+            // deep!
+            foreach (var oldProperty in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (TryGetPropertyValue(obj, oldProperty, out var oldOldValue))
+                {
+                    DetachChangeHandlers(oldOldValue);
+                }
+            }
+
+            return true;
         }
 
         private void OnPropertyChanged(object sender, PropertyChangedEventArgs args)
         {
-            var property = sender.GetType().GetProperty(args.PropertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+            var property = sender.GetType().GetProperty(args.PropertyName, BindingFlags.Public | BindingFlags.Instance);
 
-            if (property != null && property.CanRead)
+            if (TryGetPropertyValue(sender, property, out var value))
             {
-                var value = property.GetValue(sender);
-
                 if (_propertyChangedValues.TryGetValue(sender, out var properties) && properties.TryGetValue(args.PropertyName, out var oldValue))
                 {
                     DetachChangeHandlers(oldValue);
@@ -131,6 +146,25 @@ namespace ChangeDetectionBlazorWebApplication
             }
 
             StateHasChanged();
+        }
+
+        private static bool TryGetPropertyValue(object sender, PropertyInfo property, out object value)
+        {
+            if (property != null && property.CanRead && property.GetIndexParameters().Length == 0)
+            {
+                try
+                {
+                    value = property.GetValue(sender);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to get property value: {sender.GetType().FullName} => {property.Name}");
+                    Console.WriteLine(ex.StackTrace);
+                }
+            }
+            value = null;
+            return false;
         }
 
         public virtual void Dispose()

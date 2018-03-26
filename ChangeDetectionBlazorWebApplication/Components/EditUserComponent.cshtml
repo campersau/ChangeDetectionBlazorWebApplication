@@ -6,16 +6,45 @@
 
     <p>User: @user.Id</p>
 
-    <input type="text" @bind(user.Name) placeholder="Name" />
+    <p><input type="text" @bind(user.Name) placeholder="Name" /></p>
+
+    <p>User Groups</p>
+
+    foreach (var userGroup in userGroups)
+    {
+        <!-- https://github.com/aspnet/Blazor/issues/373 -->
+        @if (user.UserGroups.Contains(userGroup))
+        {
+            <p><label><input type="checkbox" @onclick(() => ToggleUserGroup(userGroup)) checked /> <input type="text" @bind(userGroup.Name) placeholder="User Group Name" /></label></p>
+        }
+        else
+        {
+            <p><label><input type="checkbox" @onclick(() => ToggleUserGroup(userGroup)) /> <input type="text" @bind(userGroup.Name) placeholder="User Group Name" /></label></p>
+        }
+    }
 }
 
 @functions {
     User user;
+    ICollection<UserGroup> userGroups;
 
     public string Id { get; set; }
 
     protected override void OnParametersSet()
     {
         user = UserRepository.FindUserById(Id);
+        userGroups = UserRepository.GetUserGroups();
+    }
+
+    private void ToggleUserGroup(UserGroup userGroup)
+    {
+        if (user.UserGroups.Contains(userGroup))
+        {
+            user.UserGroups.Remove(userGroup);
+        }
+        else
+        {
+            user.UserGroups.Add(userGroup);
+        }
     }
 }
