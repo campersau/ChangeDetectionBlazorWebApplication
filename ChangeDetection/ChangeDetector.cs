@@ -1,15 +1,13 @@
-﻿using Microsoft.AspNetCore.Blazor.Components;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
-namespace ChangeDetectionBlazorWebApplication
+namespace ChangeDetection
 {
-    public class ChangeDetectionComponent : BlazorComponent, INotifyPropertyChanged, IDisposable
+    public class ChangeDetector : IDisposable
     {
 
         private readonly Dictionary<object, int> _trackedObjects = new Dictionary<object, int>();
@@ -19,23 +17,17 @@ namespace ChangeDetectionBlazorWebApplication
 
         private readonly Action _stateChanged;
 
-        public ChangeDetectionComponent()
+        public static ChangeDetector Create(object obj, Action stateChanged)
         {
-            _stateChanged = StateHasChanged;
-
-            AttachChangeHandlers(this);
+            return new ChangeDetector(obj, stateChanged);
         }
 
-        internal ChangeDetectionComponent(Action stateChanged)
+        private ChangeDetector(object obj, Action stateChanged)
         {
             _stateChanged = stateChanged ?? throw new ArgumentNullException(nameof(stateChanged));
 
-            AttachChangeHandlers(this);
+            AttachChangeHandlers(obj);
         }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected void FirePropertyChanged([CallerMemberName] string propertyName = "") => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
         protected internal bool AttachChangeHandlers(object obj) => AttachChangeHandlersInternal(obj, false);
 

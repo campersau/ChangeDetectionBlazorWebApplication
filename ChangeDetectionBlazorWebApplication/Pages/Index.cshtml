@@ -1,7 +1,8 @@
 ﻿@page "/"
 @page "/{id}"
 @inject UserRepository UserRepository
-@inherits ChangeDetectionComponent
+@implements INotifyPropertyChanged
+@implements IDisposable
 
 <h1>Users</h1>
 
@@ -51,8 +52,12 @@ else
         set { _users = value; FirePropertyChanged(); }
     }
 
+    private ChangeDetector changeDetector;
+
     protected override void OnInit()
     {
+        changeDetector = ChangeDetector.Create(this, StateHasChanged);
+
         Users = UserRepository.GetUsers();
     }
 
@@ -69,6 +74,15 @@ else
         {
             Id = null;
         }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    protected void FirePropertyChanged([CallerMemberName] string propertyName = "") => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    public void Dispose()
+    {
+        changeDetector.Dispose();
     }
 
 }

@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ChangeDetectionBlazorWebApplication\ChangeDetectionBlazorWebApplication.csproj" />
+    <ProjectReference Include="..\ChangeDetection\ChangeDetection.csproj" />
   </ItemGroup>
 
 </Project>
