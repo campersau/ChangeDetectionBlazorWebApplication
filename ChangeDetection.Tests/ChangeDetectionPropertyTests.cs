@@ -159,6 +159,7 @@ namespace ChangeDetectionBlazorWebApplication.Tests
                 Assert.Equal(1, changeDetector.TrackedObjects);
 
                 Assert.True(changeDetector.DetachChangeHandlers(dummy));
+                Assert.True(changeDetector.DetachChangeHandlers(dummy));
                 Assert.Equal(0, changeDetector.TrackedObjects);
             }
         }

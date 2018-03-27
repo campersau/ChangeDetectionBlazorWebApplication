@@ -29,9 +29,9 @@ namespace ChangeDetection
             AttachChangeHandlers(obj);
         }
 
-        protected internal bool AttachChangeHandlers(object obj) => AttachChangeHandlersInternal(obj, false);
+        protected internal bool AttachChangeHandlers(object obj) => AttachChangeHandlersInternal(obj);
 
-        private bool AttachChangeHandlersInternal(object obj, bool deep)
+        private bool AttachChangeHandlersInternal(object obj)
         {
             if (obj == null)
             {
@@ -40,66 +40,53 @@ namespace ChangeDetection
 
             if (_trackedObjects.TryGetValue(obj, out var refCount))
             {
-                //if (deep)
-                //{
-                //    return false;
-                //}
-
                 refCount++;
 
                 _trackedObjects[obj] = refCount;
                 return false;
             }
 
-            var tracked = false;
             if (obj is INotifyPropertyChanged notifyPropertyChanged)
             {
-                notifyPropertyChanged.PropertyChanged += OnPropertyChanged;
-                tracked = true;
-            }
-            if (obj is INotifyCollectionChanged notifyCollectionChanged)
-            {
-                notifyCollectionChanged.CollectionChanged += OnCollectionChanged;
-                tracked = true;
-            }
+                _trackedObjects[obj] = 1;
 
-            if (tracked)
-            {
-                _trackedObjects.Add(obj, 1);
-            }
-
-            // deep!
-            foreach (var property in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (TryGetPropertyValue(obj, property, out var value))
+                foreach (var property in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
                 {
-                    if (obj is INotifyPropertyChanged) // initial values
+                    if (TryGetPropertyValue(obj, property, out var value))
                     {
                         if (!_propertyChangedValues.TryGetValue(obj, out var properties))
                         {
                             properties = _propertyChangedValues[obj] = new Dictionary<string, object>();
                         }
                         properties[property.Name] = value;
+
+                        AttachChangeHandlersInternal(value);
                     }
-
-                    AttachChangeHandlersInternal(value, true);
                 }
-            }
 
-            if (obj is IEnumerable enumerable)
+                notifyPropertyChanged.PropertyChanged += OnPropertyChanged;
+            }
+            if (obj is INotifyCollectionChanged notifyCollectionChanged)
             {
-                foreach (var item in enumerable)
+                _trackedObjects[obj] = 1;
+
+                if (obj is IEnumerable enumerable)
                 {
-                    AttachChangeHandlersInternal(item, true);
+                    foreach (var item in enumerable)
+                    {
+                        AttachChangeHandlersInternal(item);
+                    }
                 }
+
+                notifyCollectionChanged.CollectionChanged += OnCollectionChanged;
             }
 
-            return tracked;
+            return _trackedObjects.ContainsKey(obj);
         }
 
-        protected internal bool DetachChangeHandlers(object obj) => DetachChangeHandlersInternal(obj, false);
+        protected internal bool DetachChangeHandlers(object obj) => DetachChangeHandlersInternal(obj);
 
-        protected bool DetachChangeHandlersInternal(object obj, bool deep)
+        protected bool DetachChangeHandlersInternal(object obj)
         {
             if (obj == null)
             {
@@ -110,11 +97,6 @@ namespace ChangeDetection
             if (_trackedObjects.TryGetValue(obj, out var refCount))
             {
                 tracked = true;
-
-                //if (deep)
-                //{
-                //    return false;
-                //}
 
                 refCount--;
 
@@ -139,10 +121,7 @@ namespace ChangeDetection
                     {
                         foreach (var property in properties)
                         {
-                            if (property.Value != null && _trackedObjects.ContainsKey(property.Value))
-                            {
-                                DetachChangeHandlersInternal(property.Value, true);
-                            }
+                            DetachChangeHandlersInternal(property.Value);
                         }
                         properties.Clear();
                         _propertyChangedValues.Remove(obj);
@@ -151,26 +130,14 @@ namespace ChangeDetection
                 if (obj is INotifyCollectionChanged notifyCollectionChanged)
                 {
                     notifyCollectionChanged.CollectionChanged -= OnCollectionChanged;
-                }
-            }
 
-            // deep!
-            foreach (var oldProperty in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (TryGetPropertyValue(obj, oldProperty, out var oldOldValue))
-                {
-                    if (oldOldValue != null && _trackedObjects.ContainsKey(oldOldValue))
+                    if (obj is IEnumerable enumerable)
                     {
-                        DetachChangeHandlersInternal(oldOldValue, true);
+                        foreach (var item in enumerable)
+                        {
+                            DetachChangeHandlersInternal(item);
+                        }
                     }
-                }
-            }
-
-            if (obj is IEnumerable enumerable)
-            {
-                foreach (var item in enumerable)
-                {
-                    DetachChangeHandlersInternal(item, true);
                 }
             }
 

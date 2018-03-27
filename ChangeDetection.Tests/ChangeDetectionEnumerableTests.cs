@@ -122,10 +122,7 @@ namespace ChangeDetectionBlazorWebApplication.Tests
             {
                 Assert.False(ChangeDetectionComponent.AttachChangeHandlers(list));
 
-                Assert.Equal(1, ChangeDetectionComponent.TrackedObjects);
-
-                Assert.False(ChangeDetectionComponent.DetachChangeHandlers(list));
-                Assert.Equal(1, ChangeDetectionComponent.TrackedObjects);
+                Assert.Equal(0, ChangeDetectionComponent.TrackedObjects);
 
                 Assert.Equal(0, StateHasChanged);
             }
